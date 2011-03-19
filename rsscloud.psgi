@@ -31,6 +31,8 @@ use YAML 'DumpFile', 'LoadFile';
 my %rss_urls = %{ (eval { LoadFile('rsscloud-psgi.yml') } || {}) };
 my @log;
 
+my $settings = eval { LoadFile('rsscloud-settings.yml') } || {};
+
 push @log, { 
     event   => 'Started',
     when    => DateTime->now(),
@@ -44,7 +46,7 @@ my $app = sub {
     my $req = Plack::Request->new($env);
     my $res = $req->new_response(200);
 
-    if ($req->uri->host ne 'cloud.stuifzand.eu') {
+    if ($req->uri->host ne $settings->{cloud}{vhost}) {
         return $req->new_response(404, [], ['<h1>Not Found</h1>'])->finalize;
     }
 
