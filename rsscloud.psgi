@@ -52,7 +52,12 @@ my $app = sub {
 
     if ($req->path eq '/rsscloud/') {
         $res->content_type('text/html; charset=utf-8');
-        $res->content('<p>RSS Cloud in Perl, Plack, AnyEvent</p>');
+        $res->content('<h1>Peter\' RSScloud</h1>
+            <p>RSS Cloud in Perl, Plack, AnyEvent. <a href="/rsscloud/source">Source</a>.</p>
+            <h2>License</h2>
+            <p><a href="http://gnu.org/licenses/agpl-3.0.html">GNU AGPL3</a></p>
+            <h2>Copyright</h2>
+            <p>Copyright 2011 Peter Stuifzand</p>');
     }
     elsif ($req->path eq '/rsscloud/source') {
         $res->content_type('text/plain; charset=utf-8');
