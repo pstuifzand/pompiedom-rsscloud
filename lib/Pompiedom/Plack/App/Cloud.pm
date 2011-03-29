@@ -83,7 +83,7 @@ sub call {
         }
 
         eval {
-            for (qw/notifyProcedure protocol port path/) {
+            for (qw/protocol port path/) {
                 if (!$subscription->{$_}) {
                     die "No '$_' parameter provided in POST request";
                 }
@@ -108,7 +108,8 @@ XML
             my $host = $subscription->{host} . ':' . $subscription->{port};
 
             for (@urls) {
-                $self->subscriptions->{$_}{$host} = $subscription;
+                my %subscription = %$subscription;
+                $self->subscriptions->{$_}{$host} = \%subscription;
             }
 
             $self->save_subscriptions;
