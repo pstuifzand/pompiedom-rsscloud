@@ -51,11 +51,13 @@ sub call {
     if ($req->path_info =~ m{^/?$}) {
         $res->content_type('text/html; charset=utf-8');
         $res->content('<h1>Peter\' RSScloud</h1>
-            <p>RSS Cloud in Perl, Plack, AnyEvent. <a href="/rsscloud/source">Source</a>.</p>
+            <p>RSS Cloud in Perl, Plack, AnyEvent.</p>
             <h2>License</h2>
             <p><a href="http://gnu.org/licenses/agpl-3.0.html">GNU AGPL3</a></p>
+            <h2>Source code</h2>
+            <p>Get the code at <a href="http://github.com/pstuifzand/pompiedom-rsscloud">http://github.com/pstuifzand/pompiedom-rsscloud</a>.</p>
             <h2>Copyright</h2>
-            <p>Copyright 2011 Peter Stuifzand</p>');
+            <p>Copyright 2011 <a href="http://peterstuifzand.com/">Peter Stuifzand</a></p>');
     }
     elsif ($req->path_info =~ m{^/debug$}) {
         $res->content_type('text/html; charset=utf-8');
