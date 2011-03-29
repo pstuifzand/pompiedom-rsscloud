@@ -27,10 +27,17 @@ use Data::Dumper;
 
 use AnyEvent::HTTP;
 use YAML 'DumpFile', 'LoadFile';
+use HTML::Entities 'encode_entities';
 
 sub prepare_app {
     my $self = shift;
     $self->{subscriptions} = eval { LoadFile('rsscloud-psgi.yml') } || {};
+    return;
+}
+
+sub save_subscriptions {
+    my $self = shift;
+    DumpFile($self->subscriptions_file, $self->subscriptions);
     return;
 }
 
@@ -55,30 +62,60 @@ sub call {
         $res->content('<pre>'.Dumper($self->subscriptions).'</pre>');
     }
     elsif ($req->method eq 'POST' && $req->path_info =~ m{^/pleaseNotify$}) {
+        $res->content_type('application/xml; charset=utf-8');
+
         my $subscription = {
-            notifyProcedure => $req->param('notifyProcedure'),
-            protocol        => $req->param('protocol'),
-            port            => $req->param('port'),
-            path            => $req->param('path'),
+            notifyProcedure => scalar $req->param('notifyProcedure'),
+            protocol        => scalar $req->param('protocol'),
+            port            => scalar $req->param('port'),
+            path            => scalar $req->param('path'),
             host            => $req->address,
             subscribed      => time(),
         };
 
-        my $host = $subscription->{host} . ':' . $subscription->{port};
-
+        my @urls;
         for ($req->param) {
             if (m/url(\d+)/) {
-                $self->subscriptions->{$req->param($_)}{$host} = $subscription, 
+                push @urls, $req->param($_);
             }
         }
 
-        DumpFile('rsscloud-psgi.yml', $self->subscriptions);
+        eval {
+            for (qw/notifyProcedure protocol port path/) {
+                if (!$subscription->{$_}) {
+                    die "No '$_' parameter provided in POST request";
+                }
+            }
+            if ($subscription->{port} !~ m/^\d+$/) {
+                die "Parameter 'port' should be a number";
+            }
+            if ($subscription->{protocol} ne 'http-post') {
+                die "Protocol '".$subscription->{protocol}."' is not supported";
+            }
+        };
+        if ($@) {
+            my $err = $@;
+            $err =~ s{\s+at.*\n$}{};
+            $err = encode_entities($err);
+            $res->content(<<"XML");
+<?xml version="1.0"?>
+<result success="false" message="Not subscribed: $err" />
+XML
+        }
+        else {
+            my $host = $subscription->{host} . ':' . $subscription->{port};
 
-        $res->content_type('application/xml; charset=utf-8');
-        $res->content(<<XML);
+            for (@urls) {
+                $self->subscriptions->{$_}{$host} = $subscription;
+            }
+
+            $self->save_subscriptions;
+
+            $res->content(<<XML);
 <?xml version="1.0"?>
 <result success="true" message="Subscribed" />
 XML
+        }
     }
     elsif ($req->method eq 'POST' && $req->path_info =~ m{^/ping}) {
         $res->content_type('application/xml; charset=utf-8');
@@ -100,7 +137,7 @@ XML
                         status => $headers->{Status},
                         reason => $headers->{Reason},
                     };
-                    DumpFile('rsscloud-psgi.yml', $self->subscriptions);
+                    $self->save_subscriptions;
                 }
             });
         }
