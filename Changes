@@ -2,4 +2,4 @@
 
 	* Created lib/Pompiedom/Plack/App/Cloud.pm
 	* Remove Logging
-
+	* Added validation for pleaseNotify requests
