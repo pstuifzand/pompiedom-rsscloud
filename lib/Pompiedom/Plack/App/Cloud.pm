@@ -87,14 +87,21 @@ XML
 
         my @subscriptions = values %{ $self->{subscriptions}->{$ping_url} };
         
-        for my $sub (@subscriptions) {
-
-            my $url = sprintf('http://%s:%d%s',
-                $sub->{host}, $sub->{port}, $sub->{path});
+        while (my ($client, $sub) = each %{ $self->subscriptions->{$ping_url} }) {
+            my $url = sprintf('http://%s:%d%s', $sub->{host}, $sub->{port}, $sub->{path});
 
             http_post($url, 'url='. $ping_url, sub {
                 my ($data, $headers) = @_;
-                # Do something here
+
+                if ($headers->{Status} !~ m/^2/) {
+                    print "Ping failed\n";
+                    push @{$self->subscriptions->{$ping_url}{$client}{errors}}, {
+                        error  => 1,
+                        status => $headers->{Status},
+                        reason => $headers->{Reason},
+                    };
+                    DumpFile('rsscloud-psgi.yml', $self->subscriptions);
+                }
             });
         }
 
