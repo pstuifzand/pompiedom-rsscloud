@@ -1,0 +1,5 @@
+2011-03-29  Peter Stuifzand <peter@stuifzand.eu>
+
+	* Created lib/Pompiedom/Plack/App/Cloud.pm
+	* Remove Logging
+
