@@ -1,0 +1,19 @@
+Pompiedom RSS Cloud
+===================
+
+
+Description
+-----------
+
+Pompiedom is a microblogging empire built around Plack and RSS. It uses to
+rssCloud to provide realtime 
+
+The RSS Cloud is the part of the empire that makes sure everyone knows that a
+feed has new entries.
+
+Author
+------
+Peter Stuifzand
+
+
+
