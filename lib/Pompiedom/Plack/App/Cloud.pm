@@ -36,6 +36,9 @@ my $start_time = time();
 sub prepare_app {
     my $self = shift;
     $self->{subscriptions} ||= eval { LoadFile('rsscloud-psgi.yml') } || {};
+    $self->{timer}         ||= AnyEvent->timer(interval => 30, cb => sub {
+            $self->expire_subscriptions;
+        });
     return;
 }
 
@@ -43,6 +46,34 @@ sub save_subscriptions {
     my $self = shift;
     DumpFile($self->subscriptions_file, $self->subscriptions);
     return;
+}
+
+
+sub expire_subscriptions {
+    my $self = shift;
+    $self->logger->info("Expiring subscriptions start\n");
+
+    while (my ($url, $clients) = each %{ $self->subscriptions }) {
+        $self->logger->info("Expiring feed $url start\n");
+        while (my ($client, $sub) = each %$clients) {
+            $self->logger->debug("Expiring client $client start\n");
+
+            if ((time()-$sub->{subscribed}) > (25*60*60)) {
+                $self->logger->debug("Subscription expired for $client\n");
+                delete $self->subscriptions->{$url}{$client};
+            }
+            elsif ($sub->{errors} && @{$sub->{errors}} >= 1) {
+                $self->logger->debug("Too many errors for $client\n");
+                delete $self->subscriptions->{$url}{$client};
+            }
+
+            $self->logger->debug("Expiring client $client done\n");
+        }
+        $self->logger->info("Expiring feed $url done\n");
+    }
+
+    $self->save_subscriptions;
+    $self->logger->info("Expiring subscriptions done\n");
 }
 
 sub call {
