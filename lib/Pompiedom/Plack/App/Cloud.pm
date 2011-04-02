@@ -28,10 +28,14 @@ use Data::Dumper;
 use AnyEvent::HTTP;
 use YAML 'DumpFile', 'LoadFile';
 use HTML::Entities 'encode_entities';
+use JSON;
+use Time::HiRes qw/time/;
+
+my $start_time = time();
 
 sub prepare_app {
     my $self = shift;
-    $self->{subscriptions} = eval { LoadFile('rsscloud-psgi.yml') } || {};
+    $self->{subscriptions} ||= eval { LoadFile('rsscloud-psgi.yml') } || {};
     return;
 }
 
@@ -44,6 +48,7 @@ sub save_subscriptions {
 sub call {
     my $self = shift;
     my $env = shift;
+
 
     my $req = Plack::Request->new($env);
     my $res = $req->new_response(200);
@@ -61,10 +66,16 @@ sub call {
     }
     elsif ($req->path_info =~ m{^/debug$}) {
         $res->content_type('text/html; charset=utf-8');
-        $res->content('<pre>'.Dumper($self->subscriptions).'</pre>');
+        $res->content('<pre>'.Dumper($self->subscriptions)."\n\n".Dumper($self->{running_stats}).'</pre>');
+    }
+    elsif ($req->path_info =~ m{^/stats}) {
+        $res->content_type('text/plain; charset=utf-8');
+        $self->{running_stats}{uptime} = time() - $start_time;
+        $res->content(encode_json($self->{running_stats}));
     }
     elsif ($req->method eq 'POST' && $req->path_info =~ m{^/pleaseNotify$}) {
         $res->content_type('application/xml; charset=utf-8');
+        $self->{running_stats}{subscribe}++;
 
         my $subscription = {
             notifyProcedure => scalar $req->param('notifyProcedure'),
@@ -109,6 +120,9 @@ XML
 
             for (@urls) {
                 my %subscription = %$subscription;
+                if ($self->subscriptions->{$_}{$host}) {
+                    $self->{running_stats}{resubscribe}++;
+                }
                 $self->subscriptions->{$_}{$host} = \%subscription;
             }
 
@@ -121,6 +135,7 @@ XML
         }
     }
     elsif ($req->method eq 'POST' && $req->path_info =~ m{^/ping}) {
+        $self->{running_stats}{pings}++;
         $res->content_type('application/xml; charset=utf-8');
 
         my $ping_url = $req->param('url');
@@ -132,9 +147,11 @@ XML
 
             http_post($url, 'url='. $ping_url, sub {
                 my ($data, $headers) = @_;
+                $self->{running_stats}{notifications}++;
 
                 if ($headers->{Status} !~ m/^2/) {
                     print "Ping failed\n";
+                    $self->{running_stats}{notifications_failed}++;
                     push @{$self->subscriptions->{$ping_url}{$client}{errors}}, {
                         error  => 1,
                         status => $headers->{Status},
