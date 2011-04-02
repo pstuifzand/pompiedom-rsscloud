@@ -21,9 +21,20 @@ use warnings;
 use Pompiedom::Plack::App::Cloud;
 use Plack::Request;
 use Plack::Builder;
+use Log::Dispatch;
+
+
+my $logger = Log::Dispatch->new(
+    callbacks => sub { my %p = @_; return localtime() . ' [' . $p{level} . '] ' . $p{message}; },
+    outputs => [
+        [ 'File', min_level => 'debug', filename => 'rsscloud.log' ],
+    ]
+);
+
 
 builder {
     mount '/rsscloud' => Pompiedom::Plack::App::Cloud->new(
-        subscriptions_file => 'rsscloud-psgi.yml'
+        subscriptions_file => 'rsscloud-psgi.yml',
+        logger             => $logger,
     ),
 };

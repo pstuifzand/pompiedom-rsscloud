@@ -19,7 +19,7 @@ use strict;
 use warnings;
 use parent qw/Plack::Component/;
 
-use Plack::Util::Accessor 'subscriptions_file', 'subscriptions';
+use Plack::Util::Accessor 'subscriptions_file', 'subscriptions', 'logger';
 use Plack::Request;
 
 use DateTime;
@@ -135,22 +135,28 @@ XML
         }
     }
     elsif ($req->method eq 'POST' && $req->path_info =~ m{^/ping}) {
-        $self->{running_stats}{pings}++;
-        $res->content_type('application/xml; charset=utf-8');
-
         my $ping_url = $req->param('url');
+        $self->{running_stats}{pings}++;
 
+        $self->logger->info(sprintf('Ping (from=%s,url="%s")', $req->address, $ping_url)."\n");
+
+        $res->content_type('application/xml; charset=utf-8');
         my @subscriptions = values %{ $self->{subscriptions}->{$ping_url} };
         
         while (my ($client, $sub) = each %{ $self->subscriptions->{$ping_url} }) {
             my $url = sprintf('http://%s:%d%s', $sub->{host}, $sub->{port}, $sub->{path});
+            $self->logger->info(sprintf('Notify (url="%s")', $url)."\n");
 
             http_post($url, 'url='. $ping_url, sub {
                 my ($data, $headers) = @_;
+
                 $self->{running_stats}{notifications}++;
 
                 if ($headers->{Status} !~ m/^2/) {
-                    print "Ping failed\n";
+                    $self->logger->info(
+                        sprintf('Notify failed with %d (url="%s")',
+                            $headers->{Status}, $url)."\n");
+
                     $self->{running_stats}{notifications_failed}++;
                     push @{$self->subscriptions->{$ping_url}{$client}{errors}}, {
                         error  => 1,
@@ -172,7 +178,6 @@ XML
         $res->content_type('text/html');
         $res->content('<h1>Not found</h1>');
     }
-
     $res->finalize;
 }
 
