@@ -19,7 +19,8 @@ use strict;
 use warnings;
 use parent qw/Plack::Component/;
 
-use Plack::Util::Accessor 'subscriptions_file', 'subscriptions', 'logger';
+use Plack::Util::Accessor 'subscriptions_file', 'subscriptions', 'logger',
+    'config';
 use Plack::Request;
 
 use DateTime;
@@ -30,6 +31,7 @@ use YAML 'DumpFile', 'LoadFile';
 use HTML::Entities 'encode_entities';
 use JSON;
 use Time::HiRes qw/time/;
+use URI;
 
 my $start_time = time();
 
@@ -54,32 +56,30 @@ sub expire_subscriptions {
     $self->logger->info("Expiring subscriptions start\n");
 
     while (my ($url, $clients) = each %{ $self->subscriptions }) {
-        $self->logger->info("Expiring feed $url start\n");
-        while (my ($client, $sub) = each %$clients) {
-            $self->logger->debug("Expiring client $client start\n");
+        my $uri = URI->new($url);
+        if (!$self->config->{watched_hosts}{$uri->host}) {
+            $self->logger->info("Removing url for not watched host: $url\n");
+            delete $self->subscriptions->{$url};
+        }
 
+        while (my ($client, $sub) = each %$clients) {
             if ((time()-$sub->{subscribed}) > (25*60*60)) {
-                $self->logger->debug("Subscription expired for $client\n");
+                $self->logger->info("Subscription $url expired for $client\n");
                 delete $self->subscriptions->{$url}{$client};
             }
             elsif ($sub->{errors} && @{$sub->{errors}} >= 1) {
                 $self->logger->debug("Too many errors for $client\n");
                 delete $self->subscriptions->{$url}{$client};
             }
-
-            $self->logger->debug("Expiring client $client done\n");
         }
-        $self->logger->info("Expiring feed $url done\n");
     }
 
     $self->save_subscriptions;
-    $self->logger->info("Expiring subscriptions done\n");
 }
 
 sub call {
     my $self = shift;
     my $env = shift;
-
 
     my $req = Plack::Request->new($env);
     my $res = $req->new_response(200);
@@ -106,7 +106,6 @@ sub call {
     }
     elsif ($req->method eq 'POST' && $req->path_info =~ m{^/pleaseNotify$}) {
         $res->content_type('application/xml; charset=utf-8');
-        $self->{running_stats}{subscribe}++;
 
         my $subscription = {
             notifyProcedure => scalar $req->param('notifyProcedure'),
@@ -149,20 +148,40 @@ XML
         else {
             my $host = $subscription->{host} . ':' . $subscription->{port};
 
-            for (@urls) {
+            my $count = 0;
+
+            for my $url (@urls) {
+                my $uri = URI->new($url);
+
+                # skip not watched hosts
+                next if !$self->config->{watched_hosts}{$uri->host};
+
                 my %subscription = %$subscription;
-                if ($self->subscriptions->{$_}{$host}) {
+
+                if ($self->subscriptions->{$url}{$host}) {
                     $self->{running_stats}{resubscribe}++;
                 }
-                $self->subscriptions->{$_}{$host} = \%subscription;
+
+                $self->{running_stats}{subscribe}++;
+                $count++;
+                $self->subscriptions->{$url}{$host} = \%subscription;
             }
 
             $self->save_subscriptions;
 
-            $res->content(<<XML);
+            if ($count > 0) {
+                $res->content(<<XML);
 <?xml version="1.0"?>
 <result success="true" message="Subscribed" />
 XML
+            }
+            else {
+                $res->content(<<XML);
+<?xml version="1.0"?>
+<result success="false" message="Error: Not subscribed to any urls. The most
+likely error is that this cloud doesn't these urls." />
+XML
+            }
         }
     }
     elsif ($req->method eq 'POST' && $req->path_info =~ m{^/ping}) {
