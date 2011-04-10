@@ -22,6 +22,7 @@ use Pompiedom::Plack::App::Cloud;
 use Plack::Request;
 use Plack::Builder;
 use Log::Dispatch;
+use YAML 'LoadFile';
 
 my $logger = Log::Dispatch->new(
     callbacks => sub { my %p = @_; return localtime() . ' [' . $p{level} . '] ' . $p{message}; },
@@ -31,9 +32,12 @@ my $logger = Log::Dispatch->new(
     ]
 );
 
+my $config = eval { LoadFile('config.yml') } || {};
+
 builder {
     mount '/rsscloud' => Pompiedom::Plack::App::Cloud->new(
         subscriptions_file => 'rsscloud-psgi.yml',
         logger             => $logger,
+        config             => $config,
     ),
 };
