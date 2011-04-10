@@ -26,8 +26,8 @@ use Log::Dispatch;
 my $logger = Log::Dispatch->new(
     callbacks => sub { my %p = @_; return localtime() . ' [' . $p{level} . '] ' . $p{message}; },
     outputs => [
-        [ 'File', min_level => 'debug', filename => 'rsscloud.log' ],
-        [ 'Screen', min_level => 'debug' ],
+        [ 'File', min_level => 'info', filename => 'rsscloud.log' ],
+        [ 'Screen', min_level => 'warning' ],
     ]
 );
 

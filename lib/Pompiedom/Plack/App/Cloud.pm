@@ -30,6 +30,7 @@ use YAML 'DumpFile', 'LoadFile';
 use HTML::Entities 'encode_entities';
 use JSON;
 use Time::HiRes qw/time/;
+use URI::Escape;
 
 my $start_time = time();
 
@@ -62,7 +63,7 @@ sub expire_subscriptions {
                 $self->logger->debug("Subscription expired for $client\n");
                 delete $self->subscriptions->{$url}{$client};
             }
-            elsif ($sub->{errors} && @{$sub->{errors}} >= 1) {
+            elsif ($sub->{errors} && @{$sub->{errors}} >= 5) {
                 $self->logger->debug("Too many errors for $client\n");
                 delete $self->subscriptions->{$url}{$client};
             }
@@ -178,25 +179,27 @@ XML
             my $url = sprintf('http://%s:%d%s', $sub->{host}, $sub->{port}, $sub->{path});
             $self->logger->info(sprintf('Notify (url="%s")', $url)."\n");
 
-            http_post($url, 'url='. $ping_url, sub {
-                my ($data, $headers) = @_;
+            http_post($url, 'url='. uri_escape($ping_url), {
+                    'content-type' => 'application/x-www-form-urlencoded',
+                }, sub {
+                    my ($data, $headers) = @_;
 
-                $self->{running_stats}{notifications}++;
+                    $self->{running_stats}{notifications}++;
 
-                if ($headers->{Status} !~ m/^2/) {
-                    $self->logger->info(
-                        sprintf('Notify failed with %d (url="%s")',
-                            $headers->{Status}, $url)."\n");
+                    if ($headers->{Status} !~ m/^2/) {
+                        $self->logger->info(
+                            sprintf('Notify failed with %d (url="%s")',
+                                $headers->{Status}, $url)."\n");
 
-                    $self->{running_stats}{notifications_failed}++;
-                    push @{$self->subscriptions->{$ping_url}{$client}{errors}}, {
-                        error  => 1,
-                        status => $headers->{Status},
-                        reason => $headers->{Reason},
-                    };
-                    $self->save_subscriptions;
-                }
-            });
+                        $self->{running_stats}{notifications_failed}++;
+                        push @{$self->subscriptions->{$ping_url}{$client}{errors}}, {
+                            error  => 1,
+                            status => $headers->{Status},
+                            reason => $headers->{Reason},
+                        };
+                        $self->save_subscriptions;
+                    }
+                });
         }
 
         $res->content(<<XML);
