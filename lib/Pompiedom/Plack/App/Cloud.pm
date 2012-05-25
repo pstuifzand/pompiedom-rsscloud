@@ -102,7 +102,7 @@ sub call {
         $res->content('<pre>'.Dumper($self->subscriptions)."\n\n".Dumper($self->{running_stats}).'</pre>');
     }
     elsif ($req->path_info =~ m{^/stats}) {
-        $res->content_type('text/plain; charset=utf-8');
+        $res->content_type('application/json; charset=utf-8');
         $self->{running_stats}{uptime} = time() - $start_time;
         $res->content(encode_json($self->{running_stats}));
     }
