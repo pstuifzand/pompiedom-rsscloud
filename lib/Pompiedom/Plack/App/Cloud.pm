@@ -181,7 +181,7 @@ XML
                 $res->content(<<XML);
 <?xml version="1.0"?>
 <result success="false" message="Error: Not subscribed to any urls. The most
-likely error is that this cloud doesn't these urls." />
+likely error is that this cloud doesn't watch these urls." />
 XML
             }
         }
