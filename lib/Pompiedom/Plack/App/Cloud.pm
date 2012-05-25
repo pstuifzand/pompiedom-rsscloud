@@ -28,6 +28,7 @@ use Data::Dumper;
 
 use AnyEvent::HTTP;
 use YAML 'DumpFile', 'LoadFile';
+use Coro 'async';
 use HTML::Entities 'encode_entities';
 use JSON;
 use Time::HiRes qw/time/;
